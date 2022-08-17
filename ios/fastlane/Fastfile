@@ -1,0 +1,77 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:ios)
+
+def setup_api_key()
+ sh "if [ -d \"appstoreapi\" ]; then echo 'Directory exist, executing next step'; else git clone #{ENV['APPSTORE_API_GIT_URL']} appstoreapi; fi"
+ app_store_connect_api_key(
+   key_id: ENV['APPSTORE_KEY_ID'],
+   issuer_id: ENV['APPSTORE_ISSUER_ID'],
+   key_filepath: Dir.pwd + "/appstoreapi/API_KEY.p8",
+ )
+end
+
+def setup_ci(bundle_id)
+   # Below code snippet encodes the personal access token to base64. The match action requires a base64 encoded personal access token.
+   auth_token= ENV['GIT_TOKEN']
+   basic_auth_token = Base64.strict_encode64(auth_token)
+   # Syncs the provisioning profiles to the app store.
+   match(
+       git_url: "<git_url>",
+       git_basic_authorization: basic_auth_token,
+       readonly: true,
+       type: "appstore",
+       app_identifier: [
+       bundle_id
+   ])
+   # Sets up Xcode disabling section of the default profile from Xcode agent
+   update_code_signing_settings(
+       use_automatic_signing: false,
+       path: "../ios/AppName.xcodeproj",
+       code_sign_identity: "iPhone Distribution",
+       profile_name: "match AppStore com.appbundle.id",
+       bundle_identifier: "com.appbundle.id"
+   )
+   # Increments the build number by one every time a new build is triggered.
+   increment_build_number({
+       build_number: latest_testflight_build_number + 1
+   })
+   # Builds the binary application file
+   build_app(
+       workspace: "../ios/AppName.xcworkspace",
+       export_xcargs: "-allowProvisioningUpdates",
+       scheme: scheme,
+       clean: true,
+       silent: true,
+       sdk: "iphoneos"
+   )
+   # Prints the file path of the generated binary application file.
+   puts "IPA: #{lane_context[SharedValues::IPA_OUTPUT_PATH]}"
+end
+
+def staging(scheme, bundle_id)
+   setup_api_key()
+   setup_ci(bundle_id)
+end
+
+
+platform :ios do
+  desc "Description of what the lane does"
+  lane :staging do
+    app_identifier= "com.example.tester"
+    staging("applicationId",app_identifier)
+  end
+end

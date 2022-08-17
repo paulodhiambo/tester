@@ -1,0 +1,49 @@
+# This file contains the fastlane.tools configuration
+# You can find the documentation at https://docs.fastlane.tools
+#
+# For a list of all available actions, check out
+#
+#     https://docs.fastlane.tools/actions
+#
+# For a list of all available plugins, check out
+#
+#     https://docs.fastlane.tools/plugins/available-plugins
+#
+
+# Uncomment the line if you want fastlane to automatically update itself
+# update_fastlane
+
+default_platform(:android)
+
+def setup_ci()
+   # Runs all the tests in the Android project
+    gradle(
+     task: "test",
+     flavor: options[:build_flavor],
+     build_type: options[:build_type]
+   )
+   # Builds a release app bundle signed with the `.jks` key file whose path is specified below.
+   gradle(
+     task: "assemble",
+     flavor: options[:build_flavor],
+     build_type: options[:build_type],
+     properties: {
+       "android.injected.signing.store.file" => "production.jks",
+       "android.injected.signing.store.password" => ENV['STORE_PASSWORD'],
+       "android.injected.signing.key.alias" => ENV['KEY_ALIAS'],
+       "android.injected.signing.key.password" => ENV['KEY_PASSWORD'],
+      }
+   )
+   # Uploads the app bundle to playstore on the specified track i.e. internal track as specified below.
+   upload_to_play_store(track:'internal')
+end
+
+
+platform :android do
+   desc 'Builds an apk file for staging environment.'
+   lane :staging do
+       app_identifier= "com.example.tester"
+       staging("applicationId",app_identifier)
+   end
+end
+
